@@ -311,7 +311,8 @@ fn handle_events(
                     }
                 },
                 xcb::KEY_PRESS => {
-                    let new_param_val = rng.gen_range(0.0, 1.0);
+                    eprintln!("KEYPRESS!");
+                    let new_param_val = rng.gen_range(0.0..1.0);
                     params.pulse_width.set(new_param_val);
                     host_callback.lock().unwrap().automate(1, new_param_val);
                     // break;

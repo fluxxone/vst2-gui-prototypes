@@ -12,6 +12,7 @@ mod window;
 const DEFAULT_WIDTH: i32 = 1024;
 const DEFAULT_HEIGHT: i32 = 1024;
 
+
 pub struct Editor {
     params: Arc<Parameters>,
     window: Option<window::Window>,

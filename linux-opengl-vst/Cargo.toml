@@ -5,13 +5,13 @@ authors = ["Charles Saracco <crsaracco@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-vst = { git = "https://github.com/crsaracco/rust-vst", branch = "gvl-development" }
+vst = { git = "https://github.com/RustAudio/vst-rs" }
 #vst = { path = "/home/crs/git/github/my-rust-vst" }
 log = "0.4"
 simplelog = "^0.5.0"
 libc = "0.2"
 gl = "0.5.2"
-xcb = { version = "0.8", features = ["thread", "xlib_xcb", "dri2"] }
+xcb = { version = "0.9", features = ["thread", "xlib_xcb", "dri2"] }
 x11 = { version = "2.3", features = ["xlib", "glx"]}
 rand = "*"
 

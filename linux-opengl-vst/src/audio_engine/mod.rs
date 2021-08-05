@@ -37,7 +37,7 @@ impl AudioEngine {
     pub fn process(&mut self, buffer: &mut AudioBuffer<f32>, active_notes: Vec<u8>) {
         let output_channels = buffer.output_count();
         let num_samples = buffer.samples();
-        let (_, output_buffer) = buffer.split();
+        let (_, mut output_buffer) = buffer.split();
 
         // Precompute the samples that should go to each channel.
         // Our oscillator will output the same signal to all channels.

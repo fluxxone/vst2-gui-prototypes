@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::parameters::Parameters;
 
+#[derive(Clone)]
 pub struct SquareOscillator {
     parameters: Arc<Parameters>,
     frequency: f64,

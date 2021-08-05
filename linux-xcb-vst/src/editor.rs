@@ -1,5 +1,10 @@
 use std::ffi::c_void;
 use log::*;
+use xcb::COPY_FROM_PARENT;
+use xcb::StructPtr;
+use xcb::Visualid;
+use xcb::Visualtype;
+use xcb::ffi::xcb_screen_t;
 use std::sync::Arc;
 use std::borrow::Borrow;
 use std::thread;
@@ -10,6 +15,7 @@ use std::sync::Mutex;
 use crate::x_handle::XHandle;
 use crate::parameters::Parameters;
 
+#[derive(Clone)]
 pub struct Editor {
     is_open: bool,
     x: i32,
@@ -23,6 +29,16 @@ pub struct Editor {
     host_callback: Arc<Mutex<HostCallback>>,
 }
 
+    fn get_visual_from_screen(screen: &StructPtr<xcb_screen_t>) -> Option<Visualtype> {
+        for depth in screen.allowed_depths() {
+            for visual in depth.visuals() {
+                if visual.visual_id() == screen.root_visual() {
+                    return Some(visual);
+                }
+            }
+        }
+        None
+    }
 impl Editor {
     pub fn new(x_handle: Box<XHandle>, parameters: Arc<Parameters>, host_callback: Arc<Mutex<HostCallback>>) -> Self {
         info!("GuiVstEditor::new()");
@@ -42,6 +58,7 @@ impl Editor {
     }
 
     fn create_draw_context(&mut self, parent: u32) {
+
         info!("GuiVstEditor::create_draw_context()");
         let conn = self.x_handle.conn();
         let setup = conn.get_setup();
@@ -52,12 +69,15 @@ impl Editor {
 
         xcb::create_gc(conn.borrow(), draw_context, parent, &[
             (xcb::GC_FOREGROUND, screen.white_pixel()),
+            (xcb::GC_BACKGROUND, screen.black_pixel()),
+            (xcb::GC_FILL_STYLE, xcb::FILL_STYLE_SOLID),
             (xcb::GC_GRAPHICS_EXPOSURES, 0),
         ]);
     }
 
+
     fn create_window(&mut self, parent: u32) {
-        info!("GuiVstEditor::create_window()");
+        info!("MIRKO! GuiVstEditor::create_window({})", parent);
 
         self.create_draw_context(parent);
 
@@ -65,9 +85,16 @@ impl Editor {
         let setup = conn.get_setup();
         let screen = setup.roots().nth(self.x_handle.screen_num() as usize).unwrap();
 
+        
+        let visualtype = get_visual_from_screen(&screen).unwrap();
         self.window_handle = conn.generate_id();
+        let colormapid = conn.generate_id();
+        let attrs = xcb::get_window_attributes(&conn, parent);
+        let vid = attrs.get_reply().expect("attrs").visual();
+        xcb::create_colormap(&conn, xcb::COLORMAP_ALLOC_NONE as u8, colormapid, parent, visualtype.visual_id())
+        .request_check().unwrap();
         xcb::create_window(&conn,
-                           xcb::COPY_FROM_PARENT as u8,
+                           screen.root_depth(),
                            self.window_handle,
                            parent,
                            self.x as i16,
@@ -76,16 +103,23 @@ impl Editor {
                            self.height as u16,
                            0,
                            xcb::WINDOW_CLASS_INPUT_OUTPUT as u16,
-                           screen.root_visual(), &[
+                           visualtype.visual_id(), &[
                 (xcb::CW_BACK_PIXEL, screen.black_pixel()),
                 (xcb::CW_EVENT_MASK,
+                    xcb::EVENT_MASK_STRUCTURE_NOTIFY |
                     xcb::EVENT_MASK_EXPOSURE |
                     xcb::EVENT_MASK_BUTTON_PRESS |
                     xcb::EVENT_MASK_BUTTON_RELEASE |
                     xcb::EVENT_MASK_BUTTON_1_MOTION
                 ),
+                (xcb::CW_BORDER_PIXEL, screen.black_pixel()),
+                (xcb::CW_COLORMAP, colormapid)
+
             ]
-        );
+        ).request_check().unwrap();
+        eprintln!("MIRKO visual id {}, depth {}, vid {}", visualtype.visual_id(), screen.root_depth(), vid);
+        let val = (xcb::CONFIG_WINDOW_STACK_MODE as u16,xcb::STACK_MODE_ABOVE);
+        xcb::configure_window(&conn, self.window_handle, &[val]);
         xcb::map_window(&conn, self.window_handle);
         conn.flush();
 
@@ -154,7 +188,11 @@ impl Editor {
             &rectangle_values,
         );
 
+        eprintln!("MIRKO!");
+        let val = (xcb::CONFIG_WINDOW_STACK_MODE as u16,xcb::STACK_MODE_ABOVE);
+        xcb::configure_window(&conn, self.window_handle, &[val]);
         // Flush the request
+        xcb::map_window(&conn, self.window_handle);
         conn.flush();
     }
 
@@ -263,9 +301,10 @@ impl vst::editor::Editor for Editor {
         self.is_open = false;
     }
 
-    fn open(&mut self, parent: *mut c_void) {
+    fn open(&mut self, parent: *mut c_void) -> bool{
         info!("Editor::open()");
         self.create_window(parent as u32);
+        true
     }
 
     fn is_open(&mut self) -> bool {

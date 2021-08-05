@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::mem::swap;
 use std::sync::{Arc, Mutex};
 
 use log::*;
@@ -20,7 +21,7 @@ pub struct GvlPlugin {
     audio_engine: AudioEngine,
     midi_input_processor: MidiInputProcessor,
     params: Arc<Parameters>,
-    editor: Box<dyn VstEditor>,
+    editor: Option<Editor>
 }
 
 impl vst::plugin::Plugin for GvlPlugin {
@@ -45,7 +46,7 @@ impl vst::plugin::Plugin for GvlPlugin {
             audio_engine: AudioEngine::new(params.clone()),
             midi_input_processor: MidiInputProcessor::new(),
             params: params.clone(),
-            editor: Box::new(Editor::new(host_callback, params.clone())),
+            editor: Some(Editor::new(host_callback, params.clone())),
         }
     }
 
@@ -92,63 +93,70 @@ impl vst::plugin::Plugin for GvlPlugin {
         }
     }
 
-    fn get_parameter(&self, index: i32) -> f32 {
-        info!("get_parameter({})", index);
-        match index {
-            0 => self.params.amplitude.get(),
-            1 => self.params.pulse_width.get(),
-            _ => 0.0,
-        }
-    }
+    // fn get_parameter(&self, index: i32) -> f32 {
+    //     info!("get_parameter({})", index);
+    //     match index {
+    //         0 => self.params.amplitude.get(),
+    //         1 => self.params.pulse_width.get(),
+    //         _ => 0.0,
+    //     }
+    // }
 
-    fn set_parameter(&mut self, index: i32, value: f32) {
-        info!("set_parameter()");
-        match index {
-            0 => self.params.amplitude.set(value),
-            1 => self.params.pulse_width.set(value),
-            _ => (),
-        }
-    }
+    // fn set_parameter(&mut self, index: i32, value: f32) {
+    //     info!("set_parameter()");
+    //     match index {
+    //         0 => self.params.amplitude.set(value),
+    //         1 => self.params.pulse_width.set(value),
+    //         _ => (),
+    //     }
+    // }
 
-    // "Amplitude", "Pulse width", etc.
-    fn get_parameter_name(&self, index: i32) -> String {
-        info!("get_parameter_name({})", index);
-        match index {
-            0 => format!("Amplitude"),
-            1 => format!("Pulse width"),
-            _ => format!(""),
-        }
-    }
+    // // "Amplitude", "Pulse width", etc.
+    // fn get_parameter_name(&self, index: i32) -> String {
+    //     info!("get_parameter_name({})", index);
+    //     match index {
+    //         0 => format!("Amplitude"),
+    //         1 => format!("Pulse width"),
+    //         _ => format!(""),
+    //     }
+    // }
 
-    // Ignored by Bitwig, so I just put this in `get_parameter_text` instead.
-    // "db", "sec", "ms", etc.
-    fn get_parameter_label(&self, index: i32) -> String {
-        info!("get_parameter_label({})", index);
-        format!("asdf")
-    }
+    // // Ignored by Bitwig, so I just put this in `get_parameter_text` instead.
+    // // "db", "sec", "ms", etc.
+    // fn get_parameter_label(&self, index: i32) -> String {
+    //     info!("get_parameter_label({})", index);
+    //     format!("asdf")
+    // }
 
-    // "1.0", "150", "Plate", etc.
-    fn get_parameter_text(&self, index: i32) -> String {
-        info!("get_parameter_text({})", index);
-        match index {
-            0 => format!("{:0.2} %", self.params.amplitude.get() * 100.0), // Amplitude
-            1 => format!("{:0.2} %", self.params.pulse_width.get() * 100.0), // Pulse width
-            _ => format!(""),
-        }
-    }
+    // // "1.0", "150", "Plate", etc.
+    // fn get_parameter_text(&self, index: i32) -> String {
+    //     info!("get_parameter_text({})", index);
+    //     match index {
+    //         0 => format!("{:0.2} %", self.params.amplitude.get() * 100.0), // Amplitude
+    //         1 => format!("{:0.2} %", self.params.pulse_width.get() * 100.0), // Pulse width
+    //         _ => format!(""),
+    //     }
+    // }
 
-    fn can_be_automated(&self, index: i32) -> bool {
-        info!("can_be_automated({})", index);
-        match index {
-            0 => true, // Amplitude
-            1 => true, // Pulse width
-            _ => false,
-        }
-    }
+    // fn can_be_automated(&self, index: i32) -> bool {
+    //     info!("can_be_automated({})", index);
+    //     match index {
+    //         0 => true, // Amplitude
+    //         1 => true, // Pulse width
+    //         _ => false,
+    //     }
+    // }
 
-    fn get_editor(&mut self) -> Option<&mut vst::editor::Editor> {
+    fn get_editor(&mut self) -> Option<Box<(dyn vst::editor::Editor + 'static)>> {
         // info!("Plugin::get_editor()");
-        Some(self.editor.as_mut())
+        let mut ed = None;
+        swap(&mut ed, &mut self.editor);
+        if ed.is_some() {
+            let ed = ed.unwrap();
+            return Some(Box::new(ed))
+        } else {
+            return  None
+        }
     }
 }
 

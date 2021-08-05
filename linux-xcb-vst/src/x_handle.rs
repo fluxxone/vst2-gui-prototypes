@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct XHandle {
     conn: Arc<xcb::Connection>,
     screen_num: i32,
@@ -8,6 +9,7 @@ pub struct XHandle {
 impl XHandle {
     pub fn new() -> Self {
         let (conn, screen_num) = xcb::base::Connection::connect(None).unwrap();
+        eprintln!("Screen_num {}", screen_num);
 
         Self {
             conn: Arc::new(conn),

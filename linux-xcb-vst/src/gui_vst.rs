@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, mem::swap};
 use vst::{
     plugin::{
         Plugin,
@@ -20,9 +20,10 @@ use crate::editor::Editor;
 use crate::parameters::Parameters;
 use crate::square_oscillator::SquareOscillator;
 
+
 pub struct GuiVst {
     host: HostCallback,
-    editor: Editor,
+    editor: Option<Editor>,
     parameters: Arc<Parameters>,
     square_oscillator: SquareOscillator,
     sample_rate: f64,
@@ -90,7 +91,7 @@ impl Plugin for GuiVst {
         let square_oscillator_parameters = parameters.clone();
         Self {
             host,
-            editor: Editor::new(x_handle, editor_parameters.clone(), host_callback),
+            editor: Some(Editor::new(x_handle, editor_parameters.clone(), host_callback)),
             parameters,
             square_oscillator: SquareOscillator::new(square_oscillator_parameters.clone()),
             sample_rate: 44000.0,
@@ -121,49 +122,55 @@ impl Plugin for GuiVst {
 
     // TODO: return None if the editor couldn't be created
     // (for example, if the connection to the X server couldn't be established)
-    fn get_editor(&mut self) -> Option<&mut vst::editor::Editor> {
+    fn get_editor(&mut self) -> Option<Box<(dyn vst::editor::Editor + 'static)>> {
         //info!("get_editor()");
-        self.editor.draw_editor();
-        Some(&mut self.editor)
-    }
-
-    fn get_parameter(&self, index: i32) -> f32 {
-        info!("get_parameter");
-        match index {
-            0 => self.parameters.param1.get(),
-            1 => self.parameters.param2.get(),
-            _ => 0.0,
+        let mut e : Option<Editor> = None;
+        swap( & mut e, &mut self.editor);
+        if e.is_some() {
+            let ed = e.unwrap();
+            return Some(Box::new(ed))
+        } else {
+            return  None
         }
     }
 
-    fn get_parameter_text(&self, index: i32) -> String {
-        match index {
-            0 => format!("{:.1}%", self.parameters.param1.get() * 100.0),
-            1 => format!("{:.1}%", self.parameters.param2.get() * 100.0),
-            _ => "".to_string(),
-        }
-    }
+    // fn get_parameter(&self, index: i32) -> f32 {
+    //     info!("get_parameter");
+    //     match index {
+    //         0 => self.parameters.param1.get(),
+    //         1 => self.parameters.param2.get(),
+    //         _ => 0.0,
+    //     }
+    // }
 
-    fn get_parameter_name(&self, index: i32) -> String {
-        match index {
-            0 => "Parameter 1",
-            1 => "Parameter 2",
-            _ => "",
-        }.to_string()
-    }
+    // fn get_parameter_text(&self, index: i32) -> String {
+    //     match index {
+    //         0 => format!("{:.1}%", self.parameters.param1.get() * 100.0),
+    //         1 => format!("{:.1}%", self.parameters.param2.get() * 100.0),
+    //         _ => "".to_string(),
+    //     }
+    // }
 
-    fn set_parameter(&mut self, index: i32, val: f32) {
-        info!("set_parameter");
-        match index {
-            0 => {
-                self.parameters.param1.set(val);
-            },
-            1 => {
-                self.parameters.param2.set(val);
-            },
-            _ => (),
-        }
-    }
+    // fn get_parameter_name(&self, index: i32) -> String {
+    //     match index {
+    //         0 => "Parameter 1",
+    //         1 => "Parameter 2",
+    //         _ => "",
+    //     }.to_string()
+    // }
+
+    // fn set_parameter(&mut self, index: i32, val: f32) {
+    //     info!("set_parameter");
+    //     match index {
+    //         0 => {
+    //             self.parameters.param1.set(val);
+    //         },
+    //         1 => {
+    //             self.parameters.param2.set(val);
+    //         },
+    //         _ => (),
+    //     }
+    // }
 
     fn process_events(&mut self, events: &Events) {
         for event in events.events() {
@@ -185,7 +192,7 @@ impl Plugin for GuiVst {
     fn process(&mut self, buffer: &mut AudioBuffer<f32>) {
         let output_channels = buffer.output_count();
         let num_samples = buffer.samples();
-        let (_, output_buffer) = buffer.split();
+        let (_, mut output_buffer) = buffer.split();
 
         // Precompute the samples that should go to each channel.
         // Our oscillator will output the same signal to all channels.
